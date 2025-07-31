@@ -2,9 +2,9 @@
 
 🎓 **CS Honors + Math @ Stony Brook University**
 
-💼 **Incoming @ Google SWEP**
-
 📊 **Technical Advisor Intern @ Scale AI**
+
+💼 **Google SWEP '25**
 
 🏆 **ICPC Regionals – Honorable Mention**
 
@@ -20,7 +20,7 @@ I'm a developer and competitive programmer with a love for mathematics. I enjoy 
 
 ## 💻 Tech Stack
 
-- **Languages**: Python, C++, Java, JavaScript
+- **Languages**: Python, C++, Java
 - **Tools**: Git, Docker, Linux
 - **Interests**: AI/ML, Algorithms
 

@@ -19,7 +19,7 @@ I'm a developer and competitive programmer with a love for mathematics. I enjoy 
 ---
 
 ## :fire: Streak
-![Leetcode Stats](https://leetcard.jacoblin.cool/thehunterjames?ext=heatmap)
+![Leetcode Stats](https://leetcard.jacoblin.cool/thehunterjames?ext=contest&hide=ranking)
 
 ---
 

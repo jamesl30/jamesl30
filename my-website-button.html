@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>jamesleung.me - Animated Button</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background: #0d1117;
+    }
+
+    .button-container {
+      position: relative;
+      cursor: pointer;
+    }
+
+    #particleCanvas {
+      display: block;
+      background: #000000;
+    }
+
+    .button-container:hover {
+      opacity: 0.9;
+    }
+  </style>
+</head>
+<body>
+  <a href="https://jamesleung.me" target="_blank" class="button-container">
+    <canvas id="particleCanvas"></canvas>
+  </a>
+
+  <script>
+    const canvas = document.getElementById('particleCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Configuration
+    const CONFIG = {
+      text: 'jamesleung.me',
+      fontSize: 24,
+      fontFamily: 'Arial, sans-serif',
+      fontWeight: 'bold',
+      canvasWidth: 320,
+      canvasHeight: 50,
+      particleSize: 2,
+      pixelSampling: 2, // Sample every Nth pixel for performance
+
+      // Animation timing (in seconds)
+      initialTextDuration: 1.0,  // Show clear text first
+      explodeDuration: 0.8,
+      bounceDuration: 0.7,
+      centerHoldDuration: 0.3,
+      arcBackDuration: 1.2,
+      finalHoldDuration: 1.5,    // Show clear text for 1.5s
+
+      // Physics
+      explodeForce: 150,
+      bounceForce: 0.6,
+      damping: 0.95
+    };
+
+    // Set canvas size
+    canvas.width = CONFIG.canvasWidth;
+    canvas.height = CONFIG.canvasHeight;
+
+    // Particle class
+    class Particle {
+      constructor(x, y) {
+        this.originX = x;
+        this.originY = y;
+        this.x = x;
+        this.y = y;
+        this.vx = 0;
+        this.vy = 0;
+
+        // Random angle for explosion
+        this.explodeAngle = Math.random() * Math.PI * 2;
+        this.explodeDistance = CONFIG.explodeForce * (0.5 + Math.random() * 0.5);
+
+        // Target positions for each phase
+        this.explodeX = 0;
+        this.explodeY = 0;
+        this.centerX = CONFIG.canvasWidth / 2;
+        this.centerY = CONFIG.canvasHeight / 2;
+
+        // Arc control points (will be calculated)
+        this.arcControlX = 0;
+        this.arcControlY = 0;
+      }
+
+      calculateExplodeTarget() {
+        this.explodeX = this.originX + Math.cos(this.explodeAngle) * this.explodeDistance;
+        this.explodeY = this.originY + Math.sin(this.explodeAngle) * this.explodeDistance;
+      }
+
+      calculateArcControl() {
+        // Create a curved path from center back to origin
+        const midX = (this.centerX + this.originX) / 2;
+        const midY = (this.centerY + this.originY) / 2;
+
+        // Add perpendicular offset for arc
+        const dx = this.originX - this.centerX;
+        const dy = this.originY - this.centerY;
+        const perpX = -dy * 0.5 * (Math.random() - 0.5);
+        const perpY = dx * 0.5 * (Math.random() - 0.5);
+
+        this.arcControlX = midX + perpX;
+        this.arcControlY = midY + perpY;
+      }
+    }
+
+    let particles = [];
+    let animationPhase = 'showText';  // Start with clear text
+    let phaseStartTime = 0;
+    let animationStartTime = 0;
+
+    // Extract pixels from text
+    function extractTextPixels() {
+      // Clear and draw text
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = `${CONFIG.fontWeight} ${CONFIG.fontSize}px ${CONFIG.fontFamily}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(CONFIG.text, canvas.width / 2, canvas.height / 2);
+
+      // Get pixel data
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const pixels = imageData.data;
+
+      particles = [];
+
+      // Sample pixels
+      for (let y = 0; y < canvas.height; y += CONFIG.pixelSampling) {
+        for (let x = 0; x < canvas.width; x += CONFIG.pixelSampling) {
+          const i = (y * canvas.width + x) * 4;
+          // Check if pixel is white (text)
+          if (pixels[i] > 128) {
+            const particle = new Particle(x, y);
+            particle.calculateExplodeTarget();
+            particle.calculateArcControl();
+            particles.push(particle);
+          }
+        }
+      }
+
+      // Clear canvas
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // Easing functions
+    function easeOutCubic(t) {
+      return 1 - Math.pow(1 - t, 3);
+    }
+
+    function easeInOutCubic(t) {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    function easeOutBounce(t) {
+      const n1 = 7.5625;
+      const d1 = 2.75;
+      if (t < 1 / d1) {
+        return n1 * t * t;
+      } else if (t < 2 / d1) {
+        return n1 * (t -= 1.5 / d1) * t + 0.75;
+      } else if (t < 2.5 / d1) {
+        return n1 * (t -= 2.25 / d1) * t + 0.9375;
+      } else {
+        return n1 * (t -= 2.625 / d1) * t + 0.984375;
+      }
+    }
+
+    // Quadratic bezier interpolation
+    function quadraticBezier(t, p0, p1, p2) {
+      const oneMinusT = 1 - t;
+      return oneMinusT * oneMinusT * p0 + 2 * oneMinusT * t * p1 + t * t * p2;
+    }
+
+    // Animation phases
+    function updateExplode(progress) {
+      const easedProgress = easeOutCubic(progress);
+
+      particles.forEach(p => {
+        p.x = p.originX + (p.explodeX - p.originX) * easedProgress;
+        p.y = p.originY + (p.explodeY - p.originY) * easedProgress;
+      });
+    }
+
+    function updateBounce(progress) {
+      const easedProgress = easeOutBounce(progress);
+
+      particles.forEach(p => {
+        p.x = p.explodeX + (p.centerX - p.explodeX) * easedProgress;
+        p.y = p.explodeY + (p.centerY - p.explodeY) * easedProgress;
+      });
+    }
+
+    function updateCenterHold() {
+      // Particles stay at center with slight jitter
+      particles.forEach(p => {
+        p.x = p.centerX + (Math.random() - 0.5) * 2;
+        p.y = p.centerY + (Math.random() - 0.5) * 2;
+      });
+    }
+
+    function updateArcBack(progress) {
+      const easedProgress = easeInOutCubic(progress);
+
+      particles.forEach(p => {
+        p.x = quadraticBezier(easedProgress, p.centerX, p.arcControlX, p.originX);
+        p.y = quadraticBezier(easedProgress, p.centerY, p.arcControlY, p.originY);
+      });
+    }
+
+    function updateFinalHold() {
+      // Particles at their origin positions
+      particles.forEach(p => {
+        p.x = p.originX;
+        p.y = p.originY;
+      });
+    }
+
+    // Draw clear/crisp text
+    function drawClearText() {
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = `${CONFIG.fontWeight} ${CONFIG.fontSize}px ${CONFIG.fontFamily}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(CONFIG.text, canvas.width / 2, canvas.height / 2);
+    }
+
+    // Draw particles
+    function drawParticles() {
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = '#FFFFFF';
+      particles.forEach(p => {
+        ctx.fillRect(
+          Math.round(p.x) - CONFIG.particleSize / 2,
+          Math.round(p.y) - CONFIG.particleSize / 2,
+          CONFIG.particleSize,
+          CONFIG.particleSize
+        );
+      });
+    }
+
+    // Main animation loop
+    function animate(timestamp) {
+      if (!animationStartTime) {
+        animationStartTime = timestamp;
+        phaseStartTime = timestamp;
+      }
+
+      const phaseElapsed = (timestamp - phaseStartTime) / 1000;
+
+      // Phase state machine
+      switch (animationPhase) {
+        case 'showText':
+          // Show clear text at the start
+          drawClearText();
+          if (phaseElapsed >= CONFIG.initialTextDuration) {
+            animationPhase = 'explode';
+            phaseStartTime = timestamp;
+          }
+          break;
+
+        case 'explode':
+          if (phaseElapsed < CONFIG.explodeDuration) {
+            updateExplode(phaseElapsed / CONFIG.explodeDuration);
+          } else {
+            animationPhase = 'bounce';
+            phaseStartTime = timestamp;
+          }
+          drawParticles();
+          break;
+
+        case 'bounce':
+          if (phaseElapsed < CONFIG.bounceDuration) {
+            updateBounce(phaseElapsed / CONFIG.bounceDuration);
+          } else {
+            animationPhase = 'centerHold';
+            phaseStartTime = timestamp;
+          }
+          drawParticles();
+          break;
+
+        case 'centerHold':
+          if (phaseElapsed < CONFIG.centerHoldDuration) {
+            updateCenterHold();
+          } else {
+            animationPhase = 'arcBack';
+            phaseStartTime = timestamp;
+          }
+          drawParticles();
+          break;
+
+        case 'arcBack':
+          if (phaseElapsed < CONFIG.arcBackDuration) {
+            updateArcBack(phaseElapsed / CONFIG.arcBackDuration);
+            // Show clear text 0.1s before arc completes
+            if (phaseElapsed >= CONFIG.arcBackDuration - 0.1) {
+              drawClearText();
+            } else {
+              drawParticles();
+            }
+          } else {
+            animationPhase = 'finalText';
+            phaseStartTime = timestamp;
+            drawClearText();
+          }
+          break;
+
+        case 'finalText':
+          // Show clear/crisp text after particles form
+          drawClearText();
+          if (phaseElapsed >= CONFIG.finalHoldDuration) {
+            // Reset animation
+            animationPhase = 'explode';
+            phaseStartTime = timestamp;
+            // Recalculate random values for variety
+            particles.forEach(p => {
+              p.explodeAngle = Math.random() * Math.PI * 2;
+              p.explodeDistance = CONFIG.explodeForce * (0.5 + Math.random() * 0.5);
+              p.calculateExplodeTarget();
+              p.calculateArcControl();
+            });
+          }
+          break;
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    // Initialize
+    extractTextPixels();
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>

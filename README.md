@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://jamesleung.me" target="_blank">
-    <img src="https://img.shields.io/badge/MY%20WEBSITE-000000?style=for-the-badge&logoColor=white" width="100%" alt="My Website" />
+    <img src="images/my-website-animated.gif" width="100%" alt="My Website" />
   </a>
   <br/>
   <a href="https://www.factit.app/" target="_blank">
